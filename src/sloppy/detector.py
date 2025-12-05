@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import ast
+from typing import TYPE_CHECKING
 from pathlib import Path
-from typing import Iterator, List, Optional, Set
+from typing import Iterator, List, Optional, Set, Tuple
 
 from sloppy.patterns import get_all_patterns
 from sloppy.patterns.base import Issue, Severity
 from sloppy.analyzers.ast_analyzer import ASTAnalyzer
 from sloppy.analyzers.unused_imports import find_unused_imports
 from sloppy.analyzers.dead_code import find_dead_code
+from sloppy.analyzers.duplicates import find_cross_file_duplicates
 
 
 SEVERITY_ORDER = {
@@ -44,13 +46,26 @@ class Detector:
     def scan(self, paths: List[Path]) -> List[Issue]:
         """Scan all paths and return issues."""
         issues: list[Issue] = []
+        file_contents: list[tuple[Path, str]] = []  # For cross-file analysis
         
         for path in paths:
             if path.is_file():
                 if self._should_scan(path):
-                    issues.extend(self._scan_file(path))
+                    file_issues, content = self._scan_file_with_content(path)
+                    issues.extend(file_issues)
+                    if content:
+                        file_contents.append((path, content))
             elif path.is_dir():
-                issues.extend(self._scan_directory(path))
+                for file_path in path.rglob("*.py"):
+                    if self._should_scan(file_path):
+                        file_issues, content = self._scan_file_with_content(file_path)
+                        issues.extend(file_issues)
+                        if content:
+                            file_contents.append((file_path, content))
+        
+        # Run cross-file analysis
+        if "duplicate_code" not in self.disabled_patterns and len(file_contents) > 1:
+            issues.extend(find_cross_file_duplicates(file_contents))
         
         # Filter by severity
         issues = [
@@ -69,12 +84,6 @@ class Detector:
         
         return issues
     
-    def _scan_directory(self, directory: Path) -> Iterator[Issue]:
-        """Recursively scan a directory."""
-        for path in directory.rglob("*.py"):
-            if self._should_scan(path):
-                yield from self._scan_file(path)
-    
     def _should_scan(self, path: Path) -> bool:
         """Check if a file should be scanned."""
         if not path.suffix == ".py":
@@ -90,18 +99,23 @@ class Detector:
     
     def _scan_file(self, path: Path) -> List[Issue]:
         """Scan a single file."""
+        issues, _ = self._scan_file_with_content(path)
+        return issues
+    
+    def _scan_file_with_content(self, path: Path) -> tuple[List[Issue], Optional[str]]:
+        """Scan a single file and return issues with content."""
         issues: list[Issue] = []
         
         try:
             content = path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
-            return issues
+            return issues, None
         
         # Parse AST
         try:
             tree = ast.parse(content, filename=str(path))
         except SyntaxError:
-            return issues
+            return issues, None
         
         # Run AST analyzer
         analyzer = ASTAnalyzer(path, content, self.patterns)
@@ -122,4 +136,4 @@ class Detector:
         if "dead_code" not in self.disabled_patterns:
             issues.extend(find_dead_code(path, content))
         
-        return issues
+        return issues, content
