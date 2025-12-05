@@ -10,6 +10,7 @@ from sloppy.patterns import get_all_patterns
 from sloppy.patterns.base import Issue, Severity
 from sloppy.analyzers.ast_analyzer import ASTAnalyzer
 from sloppy.analyzers.unused_imports import find_unused_imports
+from sloppy.analyzers.dead_code import find_dead_code
 
 
 SEVERITY_ORDER = {
@@ -117,5 +118,8 @@ class Detector:
         # Run file-level analyzers
         if "unused_import" not in self.disabled_patterns:
             issues.extend(find_unused_imports(path, content))
+        
+        if "dead_code" not in self.disabled_patterns:
+            issues.extend(find_dead_code(path, content))
         
         return issues
