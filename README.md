@@ -1,8 +1,9 @@
 <!-- TODO: Add CLI demo GIF here -->
 
 <div align="center">
-  <h1>🐷 Sloppy</h1>
+  <h1>🐷 Sloppylint</h1>
   <p><strong>Detect AI-generated code anti-patterns in your Python codebase.</strong></p>
+  <p><em>100+ patterns across 6 languages (JavaScript, Java, Ruby, Go, C#, PHP)</em></p>
 </div>
 
 [![PyPI](https://img.shields.io/pypi/v/sloppylint?style=for-the-badge)](https://pypi.org/project/sloppylint/)
@@ -141,13 +142,13 @@ x = calculate()  # should work hopefully
 
 ### Why This Matters
 
-| Problem | Impact | Sloppy Catches |
+| Problem | Impact | Sloppylint Catches |
 |---------|--------|----------------|
 | Mutable defaults | Shared state bugs | ✅ Critical alert |
 | Bare except | Swallows Ctrl+C | ✅ Critical alert |
 | Placeholder functions | Runtime failures | ✅ High alert |
 | Hallucinated imports | ImportError in prod | ✅ High alert |
-| JavaScript patterns | `.push()`, `.length` errors | ✅ High alert |
+| Wrong language patterns | JS/Java/Ruby/Go/C#/PHP in Python | ✅ High alert |
 | Unused imports | Code bloat | ✅ Medium alert |
 | Dead code | Maintenance burden | ✅ Medium alert |
 | Copy-paste code | Maintenance nightmare | ✅ Medium alert |
@@ -182,13 +183,26 @@ sloppylint --version            # 📌 Show version
 
 | Feature | Description | Status |
 |---------|-------------|--------|
-| 🔍 **Hallucinated Imports** | Detect non-existent packages (40+ patterns) | ✅ Done |
-| 🎭 **Hallucinated Methods** | Detect JS patterns like `.push()`, `.length` | ✅ Done |
+| 🌐 **Multi-Language Detection** | Catches patterns from JS, Java, Ruby, Go, C#, PHP | ✅ 100+ patterns |
+| 🔍 **Hallucinated Imports** | Detect non-existent packages | ✅ Done |
 | 📦 **Unused Imports** | AST-based detection | ✅ Done |
 | 💀 **Dead Code** | Unused functions/classes | ✅ Done |
 | 🔄 **Duplicate Detection** | Cross-file copy-paste | ✅ Done |
 | 🎨 **Rich Output** | Colors and tables (optional) | ✅ Done |
 | ⚙️ **Config Support** | pyproject.toml configuration | ✅ Done |
+
+### Language Patterns Detected
+
+LLMs are trained on code from many languages. When generating Python, they sometimes produce patterns from other languages:
+
+| Language | Example Mistakes | Python Fix |
+|----------|------------------|------------|
+| **JavaScript** | `.push()`, `.length`, `.forEach()` | `.append()`, `len()`, `for` loop |
+| **Java** | `.equals()`, `.toString()`, `.isEmpty()` | `==`, `str()`, `not obj` |
+| **Ruby** | `.each`, `.nil?`, `.first`, `.last` | `for` loop, `is None`, `[0]`, `[-1]` |
+| **Go** | `fmt.Println()`, `nil` | `print()`, `None` |
+| **C#** | `.Length`, `.Count`, `.ToLower()` | `len()`, `len()`, `.lower()` |
+| **PHP** | `strlen()`, `array_push()`, `explode()` | `len()`, `.append()`, `.split()` |
 
 ---
 
@@ -206,7 +220,7 @@ pip install sloppylint[all]
 
 # Or install from source for development
 git clone https://github.com/rsionnach/sloppylint.git
-cd sloppy
+cd sloppylint
 pip install -e ".[dev]"
 ```
 
@@ -232,9 +246,9 @@ format = "detailed"  # or "compact" or "json"
 
 ```bash
 git clone https://github.com/rsionnach/sloppylint.git
-cd sloppy
+cd sloppylint
 pip install -e ".[dev]"
-pytest tests/ -v  # 57 tests should pass
+pytest tests/ -v  # 62 tests should pass
 ```
 
 See [AGENTS.md](AGENTS.md) for coding conventions and pattern implementation guide.
