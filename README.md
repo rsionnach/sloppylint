@@ -1,86 +1,247 @@
-# Sloppy
+<!-- TODO: Add CLI demo GIF here -->
 
-**Python AI Slop Detector** - Find over-engineering, hallucinations, and dead code in Python codebases.
+<div align="center">
+  <h1>🐷 Sloppy</h1>
+  <p><strong>Detect AI-generated code anti-patterns in your Python codebase.</strong></p>
+</div>
 
-Sloppy detects "AI slop" patterns commonly produced by LLMs: over-engineering, hallucinated imports, placeholder functions, copy-paste code, and more.
+[![Status: Alpha](https://img.shields.io/badge/Status-Alpha-orange?style=for-the-badge)](https://github.com/rsionnach/sloppy)
+[![Python 3.9+](https://img.shields.io/badge/Python-3.9+-blue?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
-## Installation
+---
+
+## ⚡ Quick Start
 
 ```bash
-pip install sloppy
-```
+pip install -e .
 
-## Quick Start
-
-```bash
-# Scan current directory
 sloppy .
 
-# Scan specific files/directories
-sloppy src/ tests/
+# Output:
+# CRITICAL (2 issues)
+# ============================================================
+#   src/api.py:23  mutable_default_arg
+#     Mutable default argument - use None instead
+#     > def process(items=[]):
+#
+#   src/db.py:15  bare_except
+#     Bare except catches everything including SystemExit
+#     > except:
+#
+# SLOPPY INDEX
+# ══════════════════════════════════════════════════
+# Information Utility (Noise)    : 24 pts
+# Information Quality (Lies)     : 105 pts
+# Style / Taste (Soul)           : 31 pts
+# Structural Issues              : 45 pts
+# ──────────────────────────────────────────────────
+# TOTAL SLOP SCORE               : 205 pts
+#
+# Verdict: SLOPPY
+```
 
-# Output JSON report
-sloppy --output report.json
+---
 
-# Only show high severity issues
+## 🎯 What It Catches
+
+### The Three Axes of AI Slop
+
+| Axis | What It Detects | Examples |
+|------|-----------------|----------|
+| 📢 **Noise** | Debug artifacts, redundant comments | `print()`, `# increment x` above `x += 1` |
+| 🤥 **Lies** | Hallucinations, placeholders | `def process(): pass`, mutable defaults |
+| 💀 **Soul** | Over-engineering, bad style | God functions, deep nesting, hedging comments |
+| 🏗️ **Structure** | Anti-patterns | Bare except, star imports, single-method classes |
+
+---
+
+## 📥 What You Put In
+
+```bash
+# Scan a directory
+sloppy src/
+
+# Scan specific files
+sloppy app.py utils.py
+
+# Only high severity issues
 sloppy --severity high
 
-# CI mode (exit 1 if issues found)
+# CI mode - exit 1 if issues found
 sloppy --ci --max-score 50
+
+# Export JSON report
+sloppy --output report.json
 ```
 
-## What It Detects
+---
 
-### Axis 1: Noise (Information Utility)
-- Redundant comments that restate code
-- Empty/generic docstrings
-- Debug print statements and breakpoints
-- Commented-out code blocks
+## 📤 What You Get Out
 
-### Axis 2: Lies (Information Quality)  
-- Hallucinated imports (non-existent packages)
-- Placeholder functions (`pass`, `...`, `NotImplementedError`)
-- Mutable default arguments
-- TODO/FIXME placeholders
+| Output | Description |
+|--------|-------------|
+| 🎯 **Issues by Severity** | Critical, High, Medium, Low |
+| 📊 **Slop Score** | Points breakdown by axis |
+| 📋 **Verdict** | CLEAN / ACCEPTABLE / SLOPPY / DISASTER |
+| 📁 **JSON Report** | Machine-readable for CI/CD |
 
-### Axis 3: Soul (Style/Taste)
-- Overconfident comments ("Obviously", "Simply")
-- Hedging comments ("Should work", "Hopefully")
-- God functions (>50 lines, >5 parameters)
-- Deep nesting (>4 levels)
+---
 
-### Structural Anti-Patterns
-- Single-method classes
-- Bare/broad exception handlers
-- Unused imports
-- Duplicate code across files
+## 🔍 Pattern Examples
 
-## Output
+### Critical Severity
 
-```
-SLOPPY INDEX
-════════════════════════════════════════════════
-Information Utility (Noise)    : 24 pts
-Information Quality (Lies)     : 105 pts  
-Style / Taste (Soul)           : 31 pts
-Structural Issues              : 45 pts
-────────────────────────────────────────────────
-TOTAL SLOP SCORE               : 205 pts
+```python
+# 🚨 mutable_default_arg - AI's favorite mistake
+def process_items(items=[]):  # Bug: shared state between calls
+    items.append(1)
+    return items
 
-Verdict: SLOPPY - This codebase needs cleanup
+# ✅ Fix: Use None and initialize inside
+def process_items(items=None):
+    if items is None:
+        items = []
+    items.append(1)
+    return items
 ```
 
-## Configuration
+```python
+# 🚨 bare_except - Catches SystemExit, KeyboardInterrupt
+try:
+    risky_operation()
+except:  # Bug: swallows Ctrl+C!
+    pass
+
+# ✅ Fix: Catch specific exceptions
+try:
+    risky_operation()
+except ValueError as e:
+    logger.error(f"Invalid value: {e}")
+```
+
+### High Severity
+
+```python
+# 🚨 pass_placeholder - AI gave up
+def validate_email(email):
+    pass  # TODO: implement
+
+# 🚨 hedging_comment - AI uncertainty
+x = calculate()  # should work hopefully
+```
+
+---
+
+## 💰 The Value
+
+<div align="center">
+  <h3>🔍 Catch AI mistakes before they hit production</h3>
+</div>
+
+### Why This Matters
+
+| Problem | Impact | Sloppy Catches |
+|---------|--------|----------------|
+| Mutable defaults | Shared state bugs | ✅ Critical alert |
+| Bare except | Swallows Ctrl+C | ✅ Critical alert |
+| Placeholder functions | Runtime failures | ✅ High alert |
+| Hallucinated imports | ImportError in prod | 🔨 Coming soon |
+| Copy-paste code | Maintenance nightmare | 🔨 Coming soon |
+
+### Research Says
+
+- **40%+ of AI-generated code** contains security vulnerabilities
+- **20% of AI package imports** reference non-existent libraries
+- **66% of developers** say AI code is "almost right" (the dangerous kind)
+
+---
+
+## 🛠️ CLI Commands
+
+```bash
+sloppy .                    # 🔍 Scan current directory
+sloppy src/ tests/          # 📁 Scan multiple directories
+sloppy --severity high      # ⚡ Only critical/high issues
+sloppy --lenient            # 🎯 Same as --severity high
+sloppy --strict             # 🔬 Report everything
+sloppy --ci                 # 🚦 Exit 1 if any issues
+sloppy --max-score 50       # 📊 Exit 1 if score > 50
+sloppy --output report.json # 📋 Export JSON report
+sloppy --ignore "tests/*"   # 🚫 Exclude patterns
+sloppy --disable magic_number # ⏭️ Skip specific checks
+sloppy --version            # 📌 Show version
+```
+
+---
+
+## 🔮 Roadmap
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| 🔍 **Hallucinated Imports** | Detect non-existent packages | 🔨 In Progress |
+| 🎭 **Hallucinated Methods** | Detect non-existent API calls | 🔨 In Progress |
+| 📦 **Unused Imports** | AST-based detection | 📋 Planned |
+| 💀 **Dead Code** | Unused functions/classes | 📋 Planned |
+| 🔄 **Duplicate Detection** | Cross-file copy-paste | 📋 Planned |
+| 🎨 **Rich Output** | Colors and tables | 📋 Planned |
+
+Track progress: `bd list` (uses [beads](https://github.com/steveyegge/beads))
+
+---
+
+## 📦 Installation
+
+```bash
+# From source (current)
+git clone https://github.com/rsionnach/sloppy.git
+cd sloppy
+pip install -e .
+
+# Verify
+sloppy --version
+```
+
+---
+
+## ⚙️ Configuration
 
 Configure via `pyproject.toml`:
 
 ```toml
 [tool.sloppy]
-exclude = ["tests/*", "migrations/*"]
+exclude = ["tests/*", "migrations/*", "venv/*"]
 disable = ["magic_number", "single_letter_var"]
 severity_threshold = "medium"
 ```
 
-## License
+---
+
+## 🤝 Contributing
+
+```bash
+git clone https://github.com/rsionnach/sloppy.git
+cd sloppy
+pip install -e ".[dev]"
+pytest tests/ -v  # 15 tests should pass
+```
+
+See [AGENTS.md](AGENTS.md) for coding conventions and pattern implementation guide.
+
+---
+
+## 📄 License
 
 MIT
+
+---
+
+## 🙏 Acknowledgments
+
+### Inspiration
+- [KarpeSlop](https://github.com/CodeDeficient/KarpeSlop) - The original AI Slop Linter for TypeScript
+- Andrej Karpathy's commentary on AI-generated code quality
+
+### Research
+- [Counterfeit Code](https://counterfeit-code.github.io/) - MIT research on "looks right but doesn't work" patterns
+- [Package Hallucinations](https://arxiv.org/abs/2406.10279) - USENIX study on hallucinated dependencies
