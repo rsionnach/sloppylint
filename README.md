@@ -14,8 +14,15 @@
 ## ⚡ Quick Start
 
 ```bash
+# Install from GitHub
+pip install git+https://github.com/rsionnach/sloppy.git
+
+# Or clone and install locally
+git clone https://github.com/rsionnach/sloppy.git
+cd sloppy
 pip install -e .
 
+# Run it
 sloppy .
 
 # Output:
@@ -146,8 +153,11 @@ x = calculate()  # should work hopefully
 | Mutable defaults | Shared state bugs | ✅ Critical alert |
 | Bare except | Swallows Ctrl+C | ✅ Critical alert |
 | Placeholder functions | Runtime failures | ✅ High alert |
-| Hallucinated imports | ImportError in prod | 🔨 Coming soon |
-| Copy-paste code | Maintenance nightmare | 🔨 Coming soon |
+| Hallucinated imports | ImportError in prod | ✅ High alert |
+| JavaScript patterns | `.push()`, `.length` errors | ✅ High alert |
+| Unused imports | Code bloat | ✅ Medium alert |
+| Dead code | Maintenance burden | ✅ Medium alert |
+| Copy-paste code | Maintenance nightmare | ✅ Medium alert |
 
 ### Research Says
 
@@ -175,28 +185,36 @@ sloppy --version            # 📌 Show version
 
 ---
 
-## 🔮 Roadmap
+## ✅ Features
 
 | Feature | Description | Status |
 |---------|-------------|--------|
-| 🔍 **Hallucinated Imports** | Detect non-existent packages | 🔨 In Progress |
-| 🎭 **Hallucinated Methods** | Detect non-existent API calls | 🔨 In Progress |
-| 📦 **Unused Imports** | AST-based detection | 📋 Planned |
-| 💀 **Dead Code** | Unused functions/classes | 📋 Planned |
-| 🔄 **Duplicate Detection** | Cross-file copy-paste | 📋 Planned |
-| 🎨 **Rich Output** | Colors and tables | 📋 Planned |
-
-Track progress: `bd list` (uses [beads](https://github.com/steveyegge/beads))
+| 🔍 **Hallucinated Imports** | Detect non-existent packages (40+ patterns) | ✅ Done |
+| 🎭 **Hallucinated Methods** | Detect JS patterns like `.push()`, `.length` | ✅ Done |
+| 📦 **Unused Imports** | AST-based detection | ✅ Done |
+| 💀 **Dead Code** | Unused functions/classes | ✅ Done |
+| 🔄 **Duplicate Detection** | Cross-file copy-paste | ✅ Done |
+| 🎨 **Rich Output** | Colors and tables (optional) | ✅ Done |
+| ⚙️ **Config Support** | pyproject.toml configuration | ✅ Done |
 
 ---
 
 ## 📦 Installation
 
 ```bash
-# From source (current)
+# Install from GitHub
+pip install git+https://github.com/rsionnach/sloppy.git
+
+# With colored output (recommended)
+pip install "sloppy[rich] @ git+https://github.com/rsionnach/sloppy.git"
+
+# With all optional features
+pip install "sloppy[all] @ git+https://github.com/rsionnach/sloppy.git"
+
+# Or clone and install for development
 git clone https://github.com/rsionnach/sloppy.git
 cd sloppy
-pip install -e .
+pip install -e ".[dev]"
 
 # Verify
 sloppy --version
@@ -210,9 +228,12 @@ Configure via `pyproject.toml`:
 
 ```toml
 [tool.sloppy]
-exclude = ["tests/*", "migrations/*", "venv/*"]
-disable = ["magic_number", "single_letter_var"]
-severity_threshold = "medium"
+ignore = ["tests/*", "migrations/*"]
+disable = ["magic_number", "debug_print"]
+severity = "medium"
+max-score = 100
+ci = false
+format = "detailed"  # or "compact" or "json"
 ```
 
 ---
@@ -223,7 +244,7 @@ severity_threshold = "medium"
 git clone https://github.com/rsionnach/sloppy.git
 cd sloppy
 pip install -e ".[dev]"
-pytest tests/ -v  # 15 tests should pass
+pytest tests/ -v  # 57 tests should pass
 ```
 
 See [AGENTS.md](AGENTS.md) for coding conventions and pattern implementation guide.
