@@ -154,8 +154,8 @@ x = calculate()  # should work hopefully
 
 ### Research Says
 
-- **40%+ of AI-generated code** contains security vulnerabilities
-- **20% of AI package imports** reference non-existent libraries
+- **20% of AI package imports** reference non-existent libraries — *sloppylint catches these*
+- **LLMs leak patterns** from other languages they were trained on — *sloppylint catches 100+ of these*
 - **66% of developers** say AI code is "almost right" (the dangerous kind)
 
 ---
