@@ -156,6 +156,31 @@ class NestedTernary(RegexPattern):
     pattern = re.compile(
         r'\bif\b[^:]+\belse\b[^:]+\bif\b[^:]+\belse\b',
     )
+    
+    def check_line(self, line: str, lineno: int, file) -> list:
+        """Check line, excluding matches inside strings."""
+        if self.pattern is None:
+            return []
+        
+        # Skip if line is predominantly a string (simple heuristic)
+        stripped = line.strip()
+        if stripped.startswith(('"""', "'''", '"', "'")):
+            return []
+        
+        issues = []
+        for match in self.pattern.finditer(line):
+            # Check if match is inside a string
+            start = match.start()
+            prefix = line[:start]
+            single_quotes = prefix.count("'") - prefix.count("\\'")
+            double_quotes = prefix.count('"') - prefix.count('\\"')
+            if single_quotes % 2 == 1 or double_quotes % 2 == 1:
+                continue
+            
+            issues.append(self.create_issue(
+                file=file, line=lineno, column=match.start(), code=line.strip()
+            ))
+        return issues
 
 
 STYLE_PATTERNS = [

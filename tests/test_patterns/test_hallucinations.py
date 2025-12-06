@@ -34,6 +34,32 @@ timeout = 3600
     assert len(magic_issues) == 1
 
 
+def test_print_in_string_not_flagged(tmp_python_file):
+    """Test that print() inside strings is not flagged."""
+    code = '''
+message = "use print() to debug your code"
+'''
+    file = tmp_python_file(code)
+    detector = Detector()
+    issues = detector.scan([file])
+    
+    print_issues = [i for i in issues if i.pattern_id == "debug_print"]
+    assert len(print_issues) == 0
+
+
+def test_nested_ternary_in_string_not_flagged(tmp_python_file):
+    """Test that ternary-like text in strings is not flagged."""
+    code = '''
+docs = "use x if condition else y if other else z"
+'''
+    file = tmp_python_file(code)
+    detector = Detector()
+    issues = detector.scan([file])
+    
+    ternary_issues = [i for i in issues if i.pattern_id == "nested_ternary"]
+    assert len(ternary_issues) == 0
+
+
 def test_mutable_default_list_detected(tmp_python_file):
     """Test that mutable list defaults are detected."""
     code = '''
