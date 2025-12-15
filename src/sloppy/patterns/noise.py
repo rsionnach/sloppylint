@@ -15,9 +15,16 @@ class DebugPrint(RegexPattern):
     message = "Debug print statement - remove before production"
     pattern = re.compile(r"\bprint\s*\(", re.IGNORECASE)
 
+    # Files where print() is expected (CLI tools)
+    CLI_FILE_PATTERNS = {"cli.py", "__main__.py", "main.py", "console.py", "commands.py"}
+
     def check_line(self, line: str, lineno: int, file) -> list:
         """Check line, excluding matches inside strings or comments."""
         if self.pattern is None:
+            return []
+
+        # Skip CLI-related files where print() is expected
+        if file.name in self.CLI_FILE_PATTERNS:
             return []
 
         issues = []

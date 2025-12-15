@@ -49,6 +49,22 @@ class MagicNumber(RegexPattern):
         r"\d{2,}\b(?!\.\d)"  # 2+ digit numbers not followed by decimal
     )
 
+    # Well-known constants that don't need extraction
+    WELL_KNOWN_NUMBERS = {
+        # HTTP status codes
+        "200", "201", "202", "204",  # Success
+        "301", "302", "303", "304", "307", "308",  # Redirects
+        "400", "401", "403", "404", "405", "409", "410", "422", "429",  # Client errors
+        "500", "501", "502", "503", "504",  # Server errors
+        # Time units
+        "24", "60", "365", "366",  # hours/day, minutes/seconds, days/year
+        # Computing
+        "256", "512", "1024", "2048", "4096", "8192", "16384", "32768", "65536",  # Powers of 2
+        "8080", "443", "80",  # Common ports
+        # Common defaults
+        "10", "50", "99", "128", "255",
+    }
+
     def check_line(
         self,
         line: str,
@@ -67,6 +83,9 @@ class MagicNumber(RegexPattern):
         issues = []
         for match in self.pattern.finditer(line):
             if is_in_string_or_comment(line, match.start()):
+                continue
+            # Skip well-known numbers
+            if match.group() in self.WELL_KNOWN_NUMBERS:
                 continue
             issues.append(
                 self.create_issue(
@@ -89,6 +108,14 @@ class PassPlaceholder(ASTPattern):
     message = "Placeholder function with pass - implementation needed"
     node_types = (ast.FunctionDef, ast.AsyncFunctionDef)
 
+    ABSTRACT_DECORATORS = {
+        "abstractmethod",
+        "abstractproperty",
+        "abstractclassmethod",
+        "abstractstaticmethod",
+        "overload",
+    }
+
     def check_node(
         self,
         node: ast.AST,
@@ -96,6 +123,14 @@ class PassPlaceholder(ASTPattern):
         source_lines: List[str],
     ) -> List[Issue]:
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            return []
+
+        # Skip if has abstract/overload decorator
+        if self._has_abstract_decorator(node):
+            return []
+
+        # Skip if likely a Protocol/ABC method
+        if self._is_likely_protocol_method(node, source_lines):
             return []
 
         # Check if body is just pass (optionally with docstring)
@@ -115,6 +150,48 @@ class PassPlaceholder(ASTPattern):
 
         return []
 
+    def _has_abstract_decorator(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+        """Check if function has an abstract or overload decorator."""
+        for dec in node.decorator_list:
+            dec_name = None
+            if isinstance(dec, ast.Name):
+                dec_name = dec.id
+            elif isinstance(dec, ast.Attribute):
+                dec_name = dec.attr
+            elif isinstance(dec, ast.Call):
+                if isinstance(dec.func, ast.Name):
+                    dec_name = dec.func.id
+                elif isinstance(dec.func, ast.Attribute):
+                    dec_name = dec.func.attr
+            if dec_name in self.ABSTRACT_DECORATORS:
+                return True
+        return False
+
+    def _is_likely_protocol_method(
+        self, node: ast.FunctionDef | ast.AsyncFunctionDef, source_lines: List[str]
+    ) -> bool:
+        """Check if function is likely a method inside a Protocol/ABC class."""
+        args = node.args.args
+        if not args:
+            return False
+        first_arg = args[0].arg
+        if first_arg not in ("self", "cls"):
+            return False
+
+        func_line = node.lineno - 1
+        for i in range(func_line - 1, max(func_line - 50, -1), -1):
+            if i < 0 or i >= len(source_lines):
+                continue
+            line = source_lines[i].strip()
+            if line.startswith("class ") and ":" in line:
+                if any(
+                    base in line
+                    for base in ("Protocol", "ABC", "ABCMeta", "Interface", "typing_extensions")
+                ):
+                    return True
+                break
+        return False
+
 
 class EllipsisPlaceholder(ASTPattern):
     """Detect placeholder functions with just ellipsis."""
@@ -125,6 +202,15 @@ class EllipsisPlaceholder(ASTPattern):
     message = "Placeholder function with ... - implementation needed"
     node_types = (ast.FunctionDef, ast.AsyncFunctionDef)
 
+    # Decorators that indicate abstract/protocol methods where ... is valid
+    ABSTRACT_DECORATORS = {
+        "abstractmethod",
+        "abstractproperty",
+        "abstractclassmethod",
+        "abstractstaticmethod",
+        "overload",
+    }
+
     def check_node(
         self,
         node: ast.AST,
@@ -132,6 +218,14 @@ class EllipsisPlaceholder(ASTPattern):
         source_lines: List[str],
     ) -> List[Issue]:
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            return []
+
+        # Skip if has abstract/overload decorator
+        if self._has_abstract_decorator(node):
+            return []
+
+        # Skip if likely a Protocol/ABC method
+        if self._is_likely_protocol_method(node, source_lines):
             return []
 
         body = node.body
@@ -159,6 +253,53 @@ class EllipsisPlaceholder(ASTPattern):
 
         return []
 
+    def _has_abstract_decorator(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+        """Check if function has an abstract or overload decorator."""
+        for dec in node.decorator_list:
+            dec_name = None
+            if isinstance(dec, ast.Name):
+                dec_name = dec.id
+            elif isinstance(dec, ast.Attribute):
+                dec_name = dec.attr
+            elif isinstance(dec, ast.Call):
+                if isinstance(dec.func, ast.Name):
+                    dec_name = dec.func.id
+                elif isinstance(dec.func, ast.Attribute):
+                    dec_name = dec.func.attr
+            if dec_name in self.ABSTRACT_DECORATORS:
+                return True
+        return False
+
+    def _is_likely_protocol_method(
+        self, node: ast.FunctionDef | ast.AsyncFunctionDef, source_lines: List[str]
+    ) -> bool:
+        """Check if function is likely a method inside a Protocol/ABC class."""
+        # Check if it's a method (first arg is self/cls)
+        args = node.args.args
+        if not args:
+            return False
+        first_arg = args[0].arg
+        if first_arg not in ("self", "cls"):
+            return False
+
+        # Look backwards in source to find class definition
+        func_line = node.lineno - 1
+        for i in range(func_line - 1, max(func_line - 50, -1), -1):
+            if i < 0 or i >= len(source_lines):
+                continue
+            line = source_lines[i].strip()
+            # Check for class definition with Protocol/ABC base
+            if line.startswith("class ") and ":" in line:
+                # Check if it inherits from Protocol, ABC, or similar
+                if any(
+                    base in line
+                    for base in ("Protocol", "ABC", "ABCMeta", "Interface", "typing_extensions")
+                ):
+                    return True
+                # Stop at first class definition found
+                break
+        return False
+
 
 class NotImplementedPlaceholder(ASTPattern):
     """Detect placeholder functions that just raise NotImplementedError."""
@@ -169,6 +310,14 @@ class NotImplementedPlaceholder(ASTPattern):
     message = "Function raises NotImplementedError - implementation needed"
     node_types = (ast.FunctionDef, ast.AsyncFunctionDef)
 
+    ABSTRACT_DECORATORS = {
+        "abstractmethod",
+        "abstractproperty",
+        "abstractclassmethod",
+        "abstractstaticmethod",
+        "overload",
+    }
+
     def check_node(
         self,
         node: ast.AST,
@@ -176,6 +325,14 @@ class NotImplementedPlaceholder(ASTPattern):
         source_lines: List[str],
     ) -> List[Issue]:
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            return []
+
+        # Skip if has abstract/overload decorator
+        if self._has_abstract_decorator(node):
+            return []
+
+        # Skip if likely a Protocol/ABC method
+        if self._is_likely_protocol_method(node, source_lines):
             return []
 
         body = node.body
@@ -205,6 +362,48 @@ class NotImplementedPlaceholder(ASTPattern):
                 ]
 
         return []
+
+    def _has_abstract_decorator(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+        """Check if function has an abstract or overload decorator."""
+        for dec in node.decorator_list:
+            dec_name = None
+            if isinstance(dec, ast.Name):
+                dec_name = dec.id
+            elif isinstance(dec, ast.Attribute):
+                dec_name = dec.attr
+            elif isinstance(dec, ast.Call):
+                if isinstance(dec.func, ast.Name):
+                    dec_name = dec.func.id
+                elif isinstance(dec.func, ast.Attribute):
+                    dec_name = dec.func.attr
+            if dec_name in self.ABSTRACT_DECORATORS:
+                return True
+        return False
+
+    def _is_likely_protocol_method(
+        self, node: ast.FunctionDef | ast.AsyncFunctionDef, source_lines: List[str]
+    ) -> bool:
+        """Check if function is likely a method inside a Protocol/ABC class."""
+        args = node.args.args
+        if not args:
+            return False
+        first_arg = args[0].arg
+        if first_arg not in ("self", "cls"):
+            return False
+
+        func_line = node.lineno - 1
+        for i in range(func_line - 1, max(func_line - 50, -1), -1):
+            if i < 0 or i >= len(source_lines):
+                continue
+            line = source_lines[i].strip()
+            if line.startswith("class ") and ":" in line:
+                if any(
+                    base in line
+                    for base in ("Protocol", "ABC", "ABCMeta", "Interface", "typing_extensions")
+                ):
+                    return True
+                break
+        return False
 
 
 class MutableDefaultArg(ASTPattern):

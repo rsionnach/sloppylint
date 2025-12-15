@@ -177,6 +177,13 @@ class UnusedImportAnalyzer(ast.NodeVisitor):
         if node.args.kwarg and node.args.kwarg.annotation:
             self._extract_annotation_names(node.args.kwarg.annotation)
 
+        # Check argument default values (e.g., FastAPI Depends)
+        for default in node.args.defaults:
+            self.visit(default)
+        for default in node.args.kw_defaults:
+            if default:
+                self.visit(default)
+
         # Check return annotation
         if node.returns:
             self._extract_annotation_names(node.returns)

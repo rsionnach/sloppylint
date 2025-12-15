@@ -31,6 +31,7 @@ class DeadCodeAnalyzer(ast.NodeVisitor):
         self.source = source
         self.definitions: Dict[str, DefinitionInfo] = {}
         self.used_names: Set[str] = set()
+        self.exported_names: Set[str] = set()  # Names in __all__
         self.current_class: str | None = None
 
         # Names that are commonly defined but used externally
@@ -93,7 +94,10 @@ class DeadCodeAnalyzer(ast.NodeVisitor):
 
     def analyze(self, tree: ast.AST) -> List[Issue]:
         """Analyze the AST and return dead code issues."""
-        # Collect definitions and usages
+        # First pass: extract __all__ exports
+        self._extract_exports(tree)
+
+        # Second pass: collect definitions and usages
         self.visit(tree)
 
         # Find unused definitions
@@ -105,6 +109,10 @@ class DeadCodeAnalyzer(ast.NodeVisitor):
 
             # Skip if name is used
             if name in self.used_names:
+                continue
+
+            # Skip if explicitly exported via __all__
+            if info.name in self.exported_names:
                 continue
 
             # Skip if matches external use patterns
@@ -131,6 +139,23 @@ class DeadCodeAnalyzer(ast.NodeVisitor):
             )
 
         return issues
+
+    def _extract_exports(self, tree: ast.AST) -> None:
+        """Extract names from __all__ if defined."""
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if isinstance(target, ast.Name) and target.id == "__all__":
+                        if isinstance(node.value, (ast.List, ast.Tuple)):
+                            for elt in node.value.elts:
+                                if isinstance(elt, ast.Constant) and isinstance(elt.value, str):
+                                    self.exported_names.add(elt.value)
+            elif isinstance(node, ast.AugAssign):
+                if isinstance(node.target, ast.Name) and node.target.id == "__all__":
+                    if isinstance(node.value, (ast.List, ast.Tuple)):
+                        for elt in node.value.elts:
+                            if isinstance(elt, ast.Constant) and isinstance(elt.value, str):
+                                self.exported_names.add(elt.value)
 
     def _matches_external_pattern(self, name: str) -> bool:
         """Check if name matches patterns that suggest external use."""

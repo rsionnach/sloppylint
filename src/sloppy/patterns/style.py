@@ -80,6 +80,7 @@ class GodFunction(ASTPattern):
 
     MAX_LINES = 50
     MAX_PARAMS = 5
+    MAX_PARAMS_INIT = 10  # Higher threshold for __init__ methods
 
     def check_node(
         self,
@@ -118,13 +119,16 @@ class GodFunction(ASTPattern):
         if args.args and args.args[0].arg in ("self", "cls"):
             param_count -= 1
 
-        if param_count > self.MAX_PARAMS:
+        # Use higher threshold for __init__ and __new__
+        max_params = self.MAX_PARAMS_INIT if node.name in ("__init__", "__new__") else self.MAX_PARAMS
+
+        if param_count > max_params:
             issues.append(
                 self.create_issue_from_node(
                     node,
                     file,
                     code=f"def {node.name}(...)",
-                    message=f"Function has {param_count} parameters (max {self.MAX_PARAMS})",
+                    message=f"Function has {param_count} parameters (max {max_params})",
                 )
             )
 
