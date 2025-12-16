@@ -124,6 +124,13 @@ class DeadCodeAnalyzer(ast.NodeVisitor):
                 if info.parent_class in self.used_names:
                     continue
 
+            # Skip PUBLIC functions/classes - they are designed to be imported
+            # We can only reliably detect dead code for private (_prefixed) definitions
+            # since public APIs are meant to be used by external code.
+            # This is a limitation of single-file analysis.
+            if not info.is_private:
+                continue
+
             # Report as potentially unused
             issues.append(
                 Issue(

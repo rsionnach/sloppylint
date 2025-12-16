@@ -7,16 +7,21 @@ import pytest
 from sloppy.detector import Detector
 
 
-def test_unused_function_detected(tmp_python_file):
-    """Test that unused functions are detected."""
+def test_unused_private_function_detected(tmp_python_file):
+    """Test that unused private functions are detected.
+    
+    Note: Only private functions (prefixed with _) are flagged as dead code
+    because public functions are designed to be imported by other files.
+    Single-file analysis cannot reliably detect unused public APIs.
+    """
     code = """
-def used_func():
+def _used_func():
     return 42
 
-def unused_func():
+def _unused_func():
     return "never called"
 
-result = used_func()
+result = _used_func()
 """
     file = tmp_python_file(code)
     detector = Detector()
@@ -24,7 +29,27 @@ result = used_func()
 
     dead = [i for i in issues if i.pattern_id == "dead_code"]
     assert len(dead) == 1
-    assert "unused_func" in dead[0].message
+    assert "_unused_func" in dead[0].message
+
+
+def test_public_functions_not_flagged(tmp_python_file):
+    """Test that public (non-underscore) functions are NOT flagged.
+    
+    Public functions are designed to be imported, so we can't reliably
+    determine if they're unused with single-file analysis.
+    """
+    code = """
+def public_api_function():
+    return 42
+
+# Not called in this file, but designed to be imported
+"""
+    file = tmp_python_file(code)
+    detector = Detector()
+    issues = detector.scan([file])
+
+    dead = [i for i in issues if i.pattern_id == "dead_code"]
+    assert len(dead) == 0
 
 
 def test_used_function_not_flagged(tmp_python_file):
@@ -46,16 +71,19 @@ result = main()
     assert len(dead) == 0
 
 
-def test_unused_class_detected(tmp_python_file):
-    """Test that unused classes are detected."""
+def test_unused_private_class_detected(tmp_python_file):
+    """Test that unused private classes are detected.
+    
+    Note: Only private classes (prefixed with _) are flagged as dead code.
+    """
     code = """
-class UsedClass:
+class _UsedClass:
     pass
 
-class UnusedClass:
+class _UnusedClass:
     pass
 
-obj = UsedClass()
+obj = _UsedClass()
 """
     file = tmp_python_file(code)
     detector = Detector()
@@ -63,7 +91,7 @@ obj = UsedClass()
 
     dead = [i for i in issues if i.pattern_id == "dead_code"]
     assert len(dead) == 1
-    assert "UnusedClass" in dead[0].message
+    assert "_UnusedClass" in dead[0].message
 
 
 def test_class_as_base_counts_as_usage(tmp_python_file):
@@ -185,7 +213,7 @@ result = calc.add(1, 2)
 def test_disabled_pattern(tmp_python_file):
     """Test that dead_code can be disabled."""
     code = """
-def unused_func():
+def _unused_func():
     return 42
 """
     file = tmp_python_file(code)

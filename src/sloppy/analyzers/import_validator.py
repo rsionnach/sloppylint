@@ -125,10 +125,13 @@ KNOWN_HALLUCINATIONS = {
     ("django", "FastAPI"): "FastAPI is its own package, not part of django",
     ("django", "APIRouter"): "APIRouter is from fastapi, not django",
     # === typing module confusion ===
-    ("typing", "Required"): "Required is from typing_extensions (Python <3.11)",
-    ("typing", "NotRequired"): "NotRequired is from typing_extensions (Python <3.11)",
-    ("typing", "Self"): "Self is from typing_extensions (Python <3.11)",
-    ("typing", "TypeGuard"): "TypeGuard is in typing (3.10+) or typing_extensions",
+    # NOTE: Many typing features were added in 3.10/3.11. We only flag imports that
+    # are NEVER valid (true hallucinations), not version-dependent features.
+    # Projects can use typing_extensions for backwards compatibility if needed.
+    ("typing", "Required"): None,  # Valid in 3.11+, typing_extensions for earlier
+    ("typing", "NotRequired"): None,  # Valid in 3.11+, typing_extensions for earlier
+    ("typing", "Self"): None,  # Valid in 3.11+, typing_extensions for earlier
+    ("typing", "TypeGuard"): None,  # Valid in 3.10+, typing_extensions for earlier
     ("typing", "ParamSpec"): None,  # Valid in 3.10+
     # === dataclasses confusion ===
     ("collections", "dataclass"): "dataclass is from dataclasses, not collections",
