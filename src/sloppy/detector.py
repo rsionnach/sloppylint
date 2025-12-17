@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import ast
+import fnmatch
+import re
 from pathlib import Path
 
 from sloppy.analyzers.ast_analyzer import ASTAnalyzer
-from sloppy.analyzers.dead_code import find_dead_code
-from sloppy.analyzers.duplicates import find_cross_file_duplicates
-from sloppy.analyzers.unused_imports import find_unused_imports
 from sloppy.patterns import get_all_patterns
 from sloppy.patterns.base import Issue
 from sloppy.patterns.helpers import get_multiline_string_lines
@@ -30,12 +29,14 @@ class Detector:
         include_patterns: list[str] | None = None,
         disabled_patterns: list[str] | None = None,
         min_severity: str = "low",
+        root_path: Path | None = None,
     ):
         self.ignore_patterns = ignore_patterns or []
         self.include_patterns = include_patterns or []
         self.disabled_patterns: set[str] = set(disabled_patterns or [])
         self.min_severity = min_severity
         self.min_severity_level = SEVERITY_ORDER.get(min_severity, 0)
+        self.root_path = root_path or Path.cwd()
 
         # Load patterns
         self.patterns = [p for p in get_all_patterns() if p.id not in self.disabled_patterns]
@@ -43,26 +44,17 @@ class Detector:
     def scan(self, paths: list[Path]) -> list[Issue]:
         """Scan all paths and return issues."""
         issues: list[Issue] = []
-        file_contents: list[tuple[Path, str]] = []  # For cross-file analysis
 
         for path in paths:
             if path.is_file():
                 if self._should_scan(path):
-                    file_issues, content = self._scan_file_with_content(path)
+                    file_issues = self._scan_file(path)
                     issues.extend(file_issues)
-                    if content:
-                        file_contents.append((path, content))
             elif path.is_dir():
                 for file_path in path.rglob("*.py"):
                     if self._should_scan(file_path):
-                        file_issues, content = self._scan_file_with_content(file_path)
+                        file_issues = self._scan_file(file_path)
                         issues.extend(file_issues)
-                        if content:
-                            file_contents.append((file_path, content))
-
-        # Run cross-file analysis
-        if "duplicate_code" not in self.disabled_patterns and len(file_contents) > 1:
-            issues.extend(find_cross_file_duplicates(file_contents))
 
         # Filter by severity
         issues = [
@@ -85,57 +77,75 @@ class Detector:
         if path.suffix != ".py":
             return False
 
+        # Convert to relative POSIX path for consistent matching across platforms
+        rel_path = self._get_relative_posix_path(path)
+
         # Check ignore patterns
         for pattern in self.ignore_patterns:
-            if path.match(pattern):
+            if self._match_pattern(rel_path, pattern):
                 return False
 
         # Check include patterns (if specified, file must match at least one)
         if self.include_patterns:
-            matched = False
-            for pattern in self.include_patterns:
-                if path.match(pattern) or self._match_glob(path, pattern):
-                    matched = True
-                    break
+            matched = any(
+                self._match_pattern(rel_path, pattern) for pattern in self.include_patterns
+            )
             if not matched:
                 return False
 
         return True
 
-    def _match_glob(self, path: Path, pattern: str) -> bool:
-        """Match path against a glob pattern with ** support."""
-        import fnmatch
+    def _get_relative_posix_path(self, path: Path) -> str:
+        """Convert path to relative POSIX-style string for consistent matching."""
+        try:
+            rel_path = path.resolve().relative_to(self.root_path.resolve())
+        except ValueError:
+            # Path is not relative to root, use absolute path
+            rel_path = path.resolve()
+        return rel_path.as_posix()
 
-        path_str = str(path)
-        # Handle ** patterns by checking if pattern matches any part of path
+    def _match_pattern(self, path_str: str, pattern: str) -> bool:
+        """Match path against a glob pattern using fnmatch.
+
+        Handles ** patterns for recursive matching.
+        All matching is done against POSIX-style relative paths.
+        """
+        # Normalize pattern to POSIX style
+        pattern = pattern.replace("\\", "/")
+
+        # Handle ** patterns (recursive match)
         if "**" in pattern:
-            # Convert ** glob to regex-like matching
-            # e.g., "scripts/**/*.py" should match "scripts/foo/bar.py"
-            pattern.replace("**", "*").split("/")
-            return fnmatch.fnmatch(path_str, pattern) or fnmatch.fnmatch(
-                path_str, pattern.replace("**", "*")
-            )
+            # Convert ** to match any number of path segments
+            # e.g., "src/**/*.py" matches "src/a/b/c.py"
+            # Escape special regex chars except * and ?
+            regex_pattern = re.escape(pattern)
+            # Convert ** to match any path segments (including none)
+            regex_pattern = regex_pattern.replace(r"\*\*", ".*")
+            # Convert remaining * to match anything except /
+            regex_pattern = regex_pattern.replace(r"\*", "[^/]*")
+            # Convert ? to match single char except /
+            regex_pattern = regex_pattern.replace(r"\?", "[^/]")
+            regex_pattern = f"^{regex_pattern}$"
+
+            return bool(re.match(regex_pattern, path_str))
+
+        # Simple fnmatch for patterns without **
         return fnmatch.fnmatch(path_str, pattern)
 
     def _scan_file(self, path: Path) -> list[Issue]:
         """Scan a single file."""
-        issues, _ = self._scan_file_with_content(path)
-        return issues
-
-    def _scan_file_with_content(self, path: Path) -> tuple[list[Issue], str | None]:
-        """Scan a single file and return issues with content."""
         issues: list[Issue] = []
 
         try:
             content = path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
-            return issues, None
+            return issues
 
         # Parse AST
         try:
             tree = ast.parse(content, filename=str(path))
         except SyntaxError:
-            return issues, None
+            return issues
 
         # Run AST analyzer
         analyzer = ASTAnalyzer(path, content, self.patterns)
@@ -156,11 +166,4 @@ class Detector:
                     pattern_issues = pattern.check_line(line, lineno, path)
                     issues.extend(pattern_issues)
 
-        # Run file-level analyzers
-        if "unused_import" not in self.disabled_patterns:
-            issues.extend(find_unused_imports(path, content))
-
-        if "dead_code" not in self.disabled_patterns:
-            issues.extend(find_dead_code(path, content))
-
-        return issues, content
+        return issues

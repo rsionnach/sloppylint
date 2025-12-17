@@ -195,7 +195,9 @@ def check_known_hallucination(module: str, name: str | None) -> str | None:
 
 
 def is_likely_hallucinated_package(
-    module_name: str, source_file: Path | None = None
+    module_name: str,
+    source_file: Path | None = None,
+    strict: bool = False,
 ) -> str | None:
     """
     Check if a module name looks like a hallucinated package.
@@ -203,15 +205,13 @@ def is_likely_hallucinated_package(
     Args:
         module_name: The module being imported
         source_file: Path to the file containing the import (for local file checking)
+        strict: If True, also check if module exists in environment (may cause
+                false positives for uninstalled dependencies)
 
     Returns error message if likely hallucinated, None otherwise.
     """
 
     base = module_name.split(".")[0]
-
-    # Check if it exists as an installed package
-    if module_exists(module_name):
-        return None
 
     # Check if it's a local file in the same directory as the source file
     if source_file is not None:
@@ -240,14 +240,20 @@ def is_likely_hallucinated_package(
                 break
             current = parent
 
-    # At this point, we know the module doesn't exist as installed or local
-    # But we should NOT flag it as hallucination since it could be:
-    # 1. A package that will be installed later
-    # 2. A local module in a different directory structure
-    # 3. A typo (but not AI hallucination)
-    #
-    # The purpose of this linter is to catch AI-generated "slop", not all import errors.
-    # Only flag patterns that are KNOWN AI hallucinations.
+    # Check if it's a stdlib module (always valid)
+    if base in STDLIB_MODULES:
+        return None
+
+    # In strict mode, check if the module exists in the environment
+    # This may cause false positives for third-party packages not installed
+    if strict:
+        if module_exists(module_name):
+            return None
+        # In strict mode, flag missing modules
+        return f"Module '{module_name}' not found in environment"
+
+    # Non-strict mode (default): Only flag KNOWN AI hallucination patterns
+    # This avoids false positives for legitimate third-party packages
 
     # Common AI hallucination patterns - these are generic names AI often invents
     # that don't exist as real packages

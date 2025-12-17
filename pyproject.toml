@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "sloppylint"
-version = "0.4.0"
+version = "0.5.0"
 description = "Python AI Slop Detector - Find over-engineering, hallucinations, and dead code"
 readme = "README.md"
 license = "MIT"

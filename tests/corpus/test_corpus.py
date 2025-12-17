@@ -3,6 +3,10 @@
 This test suite validates that:
 1. False positive files do NOT trigger unexpected warnings
 2. True positive files DO trigger expected warnings
+
+Note: sloppylint focuses ONLY on AI-specific patterns. Traditional linting
+patterns (debug prints, magic numbers, exception handling) are delegated
+to tools like ruff, flake8, and pylint.
 """
 from pathlib import Path
 
@@ -13,15 +17,6 @@ CORPUS_DIR = Path(__file__).parent
 
 class TestFalsePositives:
     """Tests that validate we don't flag valid code."""
-
-    def test_cli_with_print_no_debug_print_warning(self) -> None:
-        """CLI files with print() should not trigger debug_print."""
-        file = CORPUS_DIR / "false_positives" / "cli_with_print.py"
-        detector = Detector()
-        issues = detector.scan([file])
-
-        debug_prints = [i for i in issues if i.pattern_id == "debug_print"]
-        assert len(debug_prints) == 0, f"Unexpected debug_print warnings: {debug_prints}"
 
     def test_abstract_methods_no_placeholder_warning(self) -> None:
         """Abstract methods should not trigger placeholder warnings."""
@@ -45,48 +40,6 @@ class TestFalsePositives:
 
         hallucinated = [i for i in issues if i.pattern_id == "hallucinated_method"]
         assert len(hallucinated) == 0, f"Unexpected hallucinated_method warnings: {hallucinated}"
-
-    def test_main_block_print_no_debug_print_warning(self) -> None:
-        """Print in __main__ block should not trigger debug_print."""
-        file = CORPUS_DIR / "false_positives" / "main_block_print.py"
-        detector = Detector()
-        issues = detector.scan([file])
-
-        debug_prints = [i for i in issues if i.pattern_id == "debug_print"]
-        assert len(debug_prints) == 0, f"Unexpected debug_print warnings: {debug_prints}"
-
-    def test_well_known_constants_no_magic_number_warning(self) -> None:
-        """Well-known constants should not trigger magic_number."""
-        file = CORPUS_DIR / "false_positives" / "well_known_constants.py"
-        detector = Detector()
-        issues = detector.scan([file])
-
-        # Filter for magic numbers that are NOT in the well-known list
-        magic_numbers = [i for i in issues if i.pattern_id == "magic_number"]
-        # Allow some magic numbers (like 86400) but not HTTP codes, time units, etc.
-        unexpected = [
-            i
-            for i in magic_numbers
-            if any(
-                code in str(i.line)
-                for code in ["200", "201", "204", "301", "400", "401", "403", "404", "500"]
-            )
-        ]
-        assert len(unexpected) == 0, f"HTTP status codes flagged as magic numbers: {unexpected}"
-
-    def test_multiline_strings_no_false_positives(self) -> None:
-        """Content inside multi-line strings should not trigger warnings."""
-        file = CORPUS_DIR / "false_positives" / "multiline_strings.py"
-        detector = Detector()
-        issues = detector.scan([file])
-
-        # Should not flag magic_number, debug_print, or nested_ternary inside docstrings
-        pattern_issues = [
-            i for i in issues if i.pattern_id in ("magic_number", "debug_print", "nested_ternary")
-        ]
-        assert (
-            len(pattern_issues) == 0
-        ), f"Unexpected warnings inside multi-line strings: {pattern_issues}"
 
 
 class TestTruePositives:
@@ -126,15 +79,6 @@ class TestTruePositives:
             in ("pass_placeholder", "ellipsis_placeholder", "notimplemented_placeholder")
         ]
         assert len(placeholders) >= 3, f"Expected placeholder warnings, got: {placeholders}"
-
-    def test_mutable_defaults_flagged(self) -> None:
-        """Mutable default arguments should be flagged."""
-        file = CORPUS_DIR / "true_positives" / "mutable_defaults.py"
-        detector = Detector()
-        issues = detector.scan([file])
-
-        mutable = [i for i in issues if i.pattern_id == "mutable_default_arg"]
-        assert len(mutable) >= 3, f"Expected mutable default warnings, got: {mutable}"
 
     def test_java_patterns_flagged(self) -> None:
         """Java patterns should be flagged."""

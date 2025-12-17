@@ -16,7 +16,7 @@ from sloppy.scoring import calculate_score
 def create_parser() -> argparse.ArgumentParser:
     """Create the argument parser."""
     parser = argparse.ArgumentParser(
-        prog="sloppy",
+        prog="sloppylint",
         description="Python AI Slop Detector - Find over-engineering, hallucinations, and dead code",
     )
 
@@ -93,6 +93,13 @@ def create_parser() -> argparse.ArgumentParser:
         "--ci",
         action="store_true",
         help="CI mode: exit with code 1 if issues found",
+    )
+
+    parser.add_argument(
+        "--strict-imports",
+        action="store_true",
+        dest="strict_imports",
+        help="Check imports against installed packages (may cause false positives)",
     )
 
     parser.add_argument(

@@ -41,6 +41,10 @@ class Config:
     # CI mode
     ci: bool = False
 
+    # Strict import checking - when True, validates imports against installed packages
+    # When False (default), only checks for known AI hallucination patterns
+    strict_imports: bool = False
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Config:
         """Create config from a dictionary."""
@@ -52,6 +56,7 @@ class Config:
             max_score=data.get("max-score"),
             format=data.get("format", "detailed"),
             ci=data.get("ci", False),
+            strict_imports=data.get("strict-imports", False),
         )
 
     def merge_cli_args(self, args: Any) -> None:
@@ -89,6 +94,10 @@ class Config:
         # CLI ci flag takes precedence
         if hasattr(args, "ci") and args.ci:
             self.ci = True
+
+        # CLI strict_imports flag takes precedence
+        if hasattr(args, "strict_imports") and args.strict_imports:
+            self.strict_imports = True
 
 
 def find_config_file(start_path: Path | None = None) -> Path | None:

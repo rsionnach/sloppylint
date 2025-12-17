@@ -7,7 +7,6 @@ import re
 from pathlib import Path
 
 from sloppy.patterns.base import ASTPattern, Issue, RegexPattern, Severity
-from sloppy.patterns.helpers import is_in_string_or_comment
 
 
 class TodoPlaceholder(RegexPattern):
@@ -34,70 +33,6 @@ class AssumptionComment(RegexPattern):
         r"#\s*(assuming|assumes?|presumably|apparently|i think|we think|should be|might be)\b",
         re.IGNORECASE,
     )
-
-
-class MagicNumber(RegexPattern):
-    """Detect unexplained magic numbers."""
-
-    id = "magic_number"
-    severity = Severity.MEDIUM
-    axis = "quality"
-    message = "Magic number - extract to named constant"
-    pattern = re.compile(
-        r"(?<![.\w])\b(?!0\b|1\b|2\b|100\b|1000\b|True\b|False\b|None\b)"
-        r"\d{2,}\b(?!\.\d)"  # 2+ digit numbers not followed by decimal
-    )
-
-    # Well-known constants that don't need extraction
-    WELL_KNOWN_NUMBERS = {
-        # HTTP status codes
-        "200", "201", "202", "204",  # Success
-        "301", "302", "303", "304", "307", "308",  # Redirects
-        "400", "401", "403", "404", "405", "409", "410", "422", "429",  # Client errors
-        "500", "501", "502", "503", "504",  # Server errors
-        # Time units
-        "24", "60", "365", "366",  # hours/day, minutes/seconds, days/year
-        # Computing
-        "256", "512", "1024", "2048", "4096", "8192", "16384", "32768", "65536",  # Powers of 2
-        "8080", "443", "80",  # Common ports
-        # Common defaults
-        "10", "50", "99", "128", "255",
-    }
-
-    def check_line(
-        self,
-        line: str,
-        lineno: int,
-        file: Path,
-    ) -> list[Issue]:
-        """Check a line for magic numbers, excluding those in strings/comments."""
-        if self.pattern is None:
-            return []
-
-        # Skip dunder assignments (like __copyright__, __version__)
-        stripped = line.strip()
-        if stripped.startswith("__") and "=" in stripped:
-            return []
-
-        issues = []
-        for match in self.pattern.finditer(line):
-            if is_in_string_or_comment(
-                line, match.start(), self.multiline_string_lines, lineno
-            ):
-                continue
-            # Skip well-known numbers
-            if match.group() in self.WELL_KNOWN_NUMBERS:
-                continue
-            issues.append(
-                self.create_issue(
-                    file=file,
-                    line=lineno,
-                    column=match.start(),
-                    code=line.strip(),
-                )
-            )
-
-        return issues
 
 
 class PassPlaceholder(ASTPattern):
@@ -407,62 +342,6 @@ class NotImplementedPlaceholder(ASTPattern):
         return False
 
 
-class MutableDefaultArg(ASTPattern):
-    """Detect mutable default arguments."""
-
-    id = "mutable_default_arg"
-    severity = Severity.CRITICAL
-    axis = "quality"
-    message = "Mutable default argument - use None and initialize inside function"
-    node_types = (ast.FunctionDef, ast.AsyncFunctionDef)
-
-    def check_node(
-        self,
-        node: ast.AST,
-        file: Path,
-        source_lines: list[str],
-    ) -> list[Issue]:
-        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            return []
-
-        issues = []
-
-        # Check positional defaults
-        for default in node.args.defaults:
-            if isinstance(default, (ast.List, ast.Dict, ast.Set)):
-                issues.append(
-                    self.create_issue_from_node(
-                        default,
-                        file,
-                        code=f"def {node.name}(...={self._get_default_repr(default)})",
-                        message=f"Mutable default argument ({self._get_default_repr(default)}) - use None instead",
-                    )
-                )
-
-        # Check keyword-only defaults
-        for default in node.args.kw_defaults:
-            if default and isinstance(default, (ast.List, ast.Dict, ast.Set)):
-                issues.append(
-                    self.create_issue_from_node(
-                        default,
-                        file,
-                        code=f"def {node.name}(...={self._get_default_repr(default)})",
-                        message=f"Mutable default argument ({self._get_default_repr(default)}) - use None instead",
-                    )
-                )
-
-        return issues
-
-    def _get_default_repr(self, node: ast.AST) -> str:
-        if isinstance(node, ast.List):
-            return "[]"
-        elif isinstance(node, ast.Dict):
-            return "{}"
-        elif isinstance(node, ast.Set):
-            return "set()"
-        return "..."
-
-
 class HallucinatedImport(ASTPattern):
     """Detect imports from wrong modules (common AI hallucinations)."""
 
@@ -662,11 +541,9 @@ class HallucinatedAttribute(ASTPattern):
 HALLUCINATION_PATTERNS = [
     TodoPlaceholder(),
     AssumptionComment(),
-    MagicNumber(),
     PassPlaceholder(),
     EllipsisPlaceholder(),
     NotImplementedPlaceholder(),
-    MutableDefaultArg(),
     HallucinatedImport(),
     WrongStdlibImport(),
     HallucinatedMethod(),
