@@ -2,6 +2,7 @@
 
 These are imports from wrong modules - a common AI mistake.
 """
+
 # These SHOULD be flagged as hallucinated imports
 from collections import dataclass  # noqa: F401 - Should be: from dataclasses import dataclass
 from json import (

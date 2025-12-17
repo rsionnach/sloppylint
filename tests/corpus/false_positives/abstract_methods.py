@@ -3,6 +3,7 @@
 These should NOT be flagged as placeholders because they are
 legitimate abstract method definitions.
 """
+
 from abc import ABC, abstractmethod
 from typing import Protocol
 

@@ -12,14 +12,14 @@ The following should NOT trigger any warnings:
 def docstring_with_patterns():
     """
     This docstring contains patterns that SHOULD NOT be flagged:
-    
+
     Example with magic numbers:
         timeout = 3600  # one hour in seconds
         retries = 5
-        
+
     Example with print (not debug_print):
         print('Hello, world!')
-        
+
     Example with nested ternary (just documentation):
         result = x if a else y if b else z
     """
@@ -38,7 +38,7 @@ Should all be ignored.
 class ExampleClass:
     """
     Class docstring with code examples.
-    
+
     Usage:
         >>> obj = ExampleClass()
         >>> obj.process(timeout=30)
@@ -48,7 +48,7 @@ class ExampleClass:
     def method_with_docstring(self):
         """
         Method with patterns in docstring.
-        
+
         The number 42 appears here.
         Also print('something') appears.
         """

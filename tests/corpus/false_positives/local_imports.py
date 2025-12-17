@@ -3,6 +3,7 @@
 This file tests that local imports are not flagged as hallucinations.
 The imports below reference other files in the same directory.
 """
+
 # These should NOT be flagged as hallucinated imports
 # when helper_module.py exists in the same directory
 import config

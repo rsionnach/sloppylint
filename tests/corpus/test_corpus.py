@@ -8,6 +8,7 @@ Note: sloppylint focuses ONLY on AI-specific patterns. Traditional linting
 patterns (debug prints, magic numbers, exception handling) are delegated
 to tools like ruff, flake8, and pylint.
 """
+
 from pathlib import Path
 
 from sloppy.detector import Detector

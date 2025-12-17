@@ -144,7 +144,9 @@ class TerminalReporter(Reporter):
         verdict_color = (
             "green"
             if score.verdict == "CLEAN"
-            else "yellow" if score.verdict == "ACCEPTABLE" else "red"
+            else "yellow"
+            if score.verdict == "ACCEPTABLE"
+            else "red"
         )
         console.print()
         console.print(f"Verdict: [{verdict_color} bold]{score.verdict}[/{verdict_color} bold]")

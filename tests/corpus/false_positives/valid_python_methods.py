@@ -3,6 +3,7 @@
 These are all legitimate Python methods that exist in the standard library
 or common packages.
 """
+
 import re
 from functools import reduce
 
